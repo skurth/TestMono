@@ -32,6 +32,7 @@ TestMono/[Bb]in
 TestMono/[Dd]ebug*/
 TestMono/[Rr]elease*/
 Ankh.NoLoad
+.vs/
 
 #Tooling
 _ReSharper*/
