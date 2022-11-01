@@ -18,18 +18,18 @@ internal class Server
 
     public bool IsRunning => _netManager is not null && _netManager.IsRunning;
 
-    public List<string> MessagesReceived = new List<string>();
+    public List<string> MessagesReceived;
 
     public Server()
     {
-
+        MessagesReceived = new List<string>();
     }
 
     public void Start()
     {
         _netListener = new EventBasedNetListener();
         _netManager = new NetManager(_netListener);
-        _netPacketProcessor = new NetPacketProcessor();       
+        _netPacketProcessor = new NetPacketProcessor();        
 
         _netManager.Start(9050);
 

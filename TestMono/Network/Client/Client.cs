@@ -16,12 +16,11 @@ internal class Client
 
     public bool IsRunning => _netManager is not null && _netManager.IsRunning;
 
-    public List<string> MessagesReceived = new List<string>();
-
+    public List<string> MessagesReceived;
 
     public Client()
     {
-
+        MessagesReceived = new List<string>();
     }
 
     public void Connect()
@@ -29,6 +28,11 @@ internal class Client
         _netListener = new EventBasedNetListener();
         _netManager = new NetManager(_netListener);
         _netPacketProcessor = new NetPacketProcessor();
+
+        _netManager.SimulateLatency = true;
+        _netManager.SimulationMinLatency = 1000;
+        _netManager.SimulationMaxLatency = 3000;
+        _netManager.SimulationPacketLossChance = 99;
 
         _netManager.Start();
         _netManager.Connect("localhost", 9050, "SomeConnectionKey");
