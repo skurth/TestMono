@@ -4,31 +4,37 @@ using System.Collections.Generic;
 
 namespace TestMono.GameObjects.Map;
 
-internal class Map
+public class Map
 {
-    private const int _MAP_TILES_X = 36;
-    private const int _MAP_TILES_Y = 24;
-    
+    public const int _MAP_MIN_TILES_X = 5;
+    public const int _MAP_MAX_TILES_X = 36;
+    public const int _MAP_MIN_TILES_Y = 5;
+    public const int _MAP_MAX_TILES_Y = 24;
+
     public List<MapTile> Tiles { get; set; }
     public Vector2 MaxMapSize { get; set; }
+
+    public int MaxTileX { get; set; }
+    public int MaxTileY { get; set; }
 
     public Map()
     {
         Tiles = new List<MapTile>();
-        InitMap();
     }
 
-    private void InitMap()
+    public void InitMap(int tilesX, int tilesY)
     {
-        for (int idxX = 0; idxX < _MAP_TILES_X; idxX++)
+        for (int idxX = 0; idxX < tilesX; idxX++)
         {
-            for (int idxY = 0; idxY < _MAP_TILES_Y; idxY++)
+            for (int idxY = 0; idxY < tilesY; idxY++)
             {
                 Tiles.Add(new MapTile(idxX, idxY));                
             }
         }
 
-        MaxMapSize = new Vector2(_MAP_TILES_X * MapTile._TILE_WIDTH, _MAP_TILES_Y * MapTile._TILE_HEIGHT);
+        MaxTileX = tilesX;
+        MaxTileY = tilesY;
+        MaxMapSize = new Vector2(tilesX * MapTile._TILE_WIDTH, tilesY * MapTile._TILE_HEIGHT);
     }
 
     public void Draw(SpriteBatch spriteBatch)
@@ -42,5 +48,10 @@ internal class Map
     public bool IsInside(Vector2 position)
     {
         return position.X > 0 && position.Y > 0 && position.X < MaxMapSize.X && position.Y < MaxMapSize.Y;
+    }
+
+    public static Vector2 GetPositionFromTiles(int tileX, int tileY)
+    {
+        return new Vector2(tileX * MapTile._TILE_WIDTH, tileY * MapTile._TILE_HEIGHT);
     }
 }

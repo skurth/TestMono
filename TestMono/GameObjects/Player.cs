@@ -5,18 +5,27 @@ using System.Collections.Generic;
 
 namespace TestMono.GameObjects;
 
-internal class Player
+public class Player
 {
+    public string Id { get; set; }
     public bool Authorized { get; set; }
     public List<IUnit> Units { get; set; }
+    public Color Color { get; set; }
 
-    public Player(bool authorized)
+    public Player(
+        string id,
+        bool authorized,
+        int startUnitId,
+        Vector2 startUnitPosition,
+        Color color)
     {
+        Id = id;
         Authorized = authorized;
+        Color = color;
 
         Units = new List<IUnit>();
 
-        var startUnit = new SimpleUnit(this);
+        var startUnit = new SimpleUnit(startUnitId, this, startUnitPosition);
         Units.Add(startUnit);        
     }
 
@@ -63,7 +72,7 @@ internal class Player
         {
             if (!unit.IsSelected) { continue; }
 
-            unit.EndPosition = new Vector2(endPosition.X - unit.Texture.Width / 2, endPosition.Y - unit.Texture.Height / 2);
+            unit.EndPosition = new Vector2(endPosition.X - unit.Width / 2, endPosition.Y - unit.Height / 2);
         }
     }
 }

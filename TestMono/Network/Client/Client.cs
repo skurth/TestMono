@@ -1,15 +1,19 @@
 ﻿using LiteNetLib;
 using LiteNetLib.Utils;
 using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using TestMono.Network.Packets;
+using TestMono.Network.Packets.ClientToServer;
+using TestMono.Network.Packets.ServerToClient;
 
 namespace TestMono.Network.Client;
 
-internal class Client
+public class Client
 {
+    public string PlayerId { get; init; }
+
     private EventBasedNetListener _netListener;
     private NetManager _netManager;
     private NetPacketProcessor _netPacketProcessor;
@@ -18,8 +22,11 @@ internal class Client
 
     public List<string> MessagesReceived;
 
+    public ClientGameInstance GameInstance { get; set; }
+
     public Client()
     {
+        PlayerId = Guid.NewGuid().ToString().Substring(0, 4);
         MessagesReceived = new List<string>();
     }
 
@@ -29,27 +36,41 @@ internal class Client
         _netManager = new NetManager(_netListener);
         _netPacketProcessor = new NetPacketProcessor();
 
-        _netManager.SimulateLatency = true;
-        _netManager.SimulationMinLatency = 1000;
-        _netManager.SimulationMaxLatency = 3000;
-        _netManager.SimulationPacketLossChance = 99;
+        _netPacketProcessor.RegisterNestedType<InitGamePlayerInfo>(() => new InitGamePlayerInfo());
+
+        //_netManager.SimulateLatency = true;
+        //_netManager.SimulationMinLatency = 1000;
+        //_netManager.SimulationMaxLatency = 3000;
+        //_netManager.SimulationPacketLossChance = 99;
 
         _netManager.Start();
-        _netManager.Connect("localhost", 9050, "SomeConnectionKey");
+        _netManager.Connect("localhost", 9050, "TestMono");
+
+        _netListener.PeerConnectedEvent += (server) =>
+        {
+            SendClientInfoPacket();
+        };
 
         _netListener.NetworkReceiveEvent += (server, reader, deliveryMethod) =>
         {
-            //var msg = dataReader.GetString(100);
-            //MessagesReceived.Add(msg);            
-            //dataReader.Recycle();
-
             _netPacketProcessor.ReadAllPackets(reader, server);
-        };
+        };                
 
-        _netPacketProcessor.SubscribeReusable<FooPacket>((packet) => {
-            MessagesReceived.Add($"Server sent FooPacket: {JsonConvert.SerializeObject(packet)}");
+        _netPacketProcessor.SubscribeReusable<InitGamePacket>((packet) => {
+            MessagesReceived.Add($"Server sent InitGamePacket: {JsonConvert.SerializeObject(packet)}");
+
+            var sceneInfo = ClientGameInstance.CreateGameSceneInfo(packet, ApplicationType.Client);
+            Game1.CurrentGame.ScenesManager.CreateGameScene(sceneInfo, GameInstance);
         });
-    }    
+
+        _netPacketProcessor.SubscribeReusable<MoveUnitOrderPacket, NetPeer>((packet, peerFrom) => {
+            MessagesReceived.Add($"Client sent InfoPacket: {JsonConvert.SerializeObject(packet)}");
+
+            GameInstance.MoveUnitOrder(packet);            
+        });
+
+        GameInstance = new ClientGameInstance(this);
+    }
 
     public void PollEvents()
     {
@@ -72,15 +93,14 @@ internal class Client
         return sb.ToString();
     }
 
-    public void SendTest()
+    public void SendClientInfoPacket()
     {
-        //NetClient.SendToAll
+        _netManager.SendToAll(_netPacketProcessor.Write(new ClientInfoPacket() { PlayerId = PlayerId }), DeliveryMethod.ReliableOrdered);
     }
 
-    public void SendTestPacket()
+    public void SendMoveUnitRequestPacket(MoveUnitRequestPacket packet)
     {
-        //_netManager.SendToAll(_netPacketProcessor.Write(new FooPacket() { NumberValue = 3, StringValue = "Hi from Client" }), DeliveryMethod.ReliableOrdered);
-        _netManager.SendToAll(_netPacketProcessor.Write(new PositionPacket() { UnitId = 1, MoveToX = 2, MoveToY = 3}), DeliveryMethod.ReliableOrdered);
+        _netManager.SendToAll(_netPacketProcessor.Write(packet), DeliveryMethod.ReliableOrdered);
     }
 
 }

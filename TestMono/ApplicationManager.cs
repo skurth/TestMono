@@ -33,26 +33,7 @@ internal static class ApplicationManager
 
         Server?.PollEvents();
         Client?.PollEvents();
-    }
-
-    public static void SendTest()
-    {
-        if (!IsRunning)
-            return;
-
-        Server?.SendTest();
-        Client?.SendTest();
-    }
-
-    public static void SendTestPacket()
-    {
-        if (!IsRunning)
-            return;
-
-        Server?.SendTestPacket();
-        Client?.SendTestPacket();
-    }
-
+    }   
 }
 
 public enum ApplicationType

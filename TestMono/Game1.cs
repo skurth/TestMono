@@ -19,7 +19,8 @@ namespace TestMono
         public static Game1 CurrentGame { get => _currentGame; }
         public SpriteFont MainFont { get; set; }
 
-        private ScenesManager _scenesManager;        
+        private ScenesManager _scenesManager;
+        public ScenesManager ScenesManager { get => _scenesManager; }
 
         private FpsCounter _fpsCounter;
 
@@ -57,6 +58,8 @@ namespace TestMono
             _scenesManager.CreateMainScene();           
 
             _fpsCounter = new FpsCounter(this, MainFont, new Vector2(10, 10));
+
+            PlayerUtils.Init();
             // TODO: use this.Content to load your game content here
         }
 

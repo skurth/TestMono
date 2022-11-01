@@ -4,7 +4,7 @@ using MonoGame.Extended;
 
 namespace TestMono.GameObjects.Map;
 
-internal class MapTile
+public class MapTile
 {
     public const int _TILE_WIDTH = 64;
     public const int _TILE_HEIGHT = 64;

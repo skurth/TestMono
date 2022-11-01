@@ -5,15 +5,18 @@ using MonoGame.Extended;
 namespace TestMono.GameObjects;
 
 internal class SimpleUnit : IUnit
-{    
-    public Texture2D Texture { get; set; }
+{
+    //public Texture2D Texture { get; set; }
+    public int Id { get; set; }
+    public int Width { get; set; }
+    public int Height { get; set; }
     public Vector2 Position { get; set; }
     public Player Player { get; set; }
-    public bool IsSelected { get; set; }
+    public bool IsSelected { get; set; }    
 
-    private Vector2 CenterPosition { get => new Vector2(Position.X + Texture.Width / 2, Position.Y + Texture.Height / 2); }
+    private Vector2 CenterPosition { get => new Vector2(Position.X + Width / 2, Position.Y + Height / 2); }
 
-    public RectangleF Rectangle { get => new RectangleF(Position.X, Position.Y, Texture.Width, Texture.Height); }
+    public RectangleF Rectangle { get => new RectangleF(Position.X, Position.Y, Width, Height); }
 
     public Vector2 EndPosition { get; set; }
     
@@ -21,24 +24,23 @@ internal class SimpleUnit : IUnit
 
     public Color CircleColor { get; set; }
 
+    private readonly SpriteFont _font;
 
-    public SimpleUnit(Player player)
-    {        
-        Texture = Game1.CurrentGame.Content.Load<Texture2D>("square_lightblue");        
+    public SimpleUnit(int id, Player player, Vector2 startPosition)
+    {
+        //Texture = Game1.CurrentGame.Content.Load<Texture2D>("square_lightblue");        
+        Id = id;
+        Width = 48;
+        Height = 48;
         Player = player;
         MovementSpeed = 200.0f;
-        EndPosition = Vector2.Zero;        
+        EndPosition = Vector2.Zero;
 
-        if (Player.Authorized)
-        {
-            Position = new Vector2(100, 200);
-            CircleColor = Color.Green;
-        }
-        else
-        {
-            Position = new Vector2(400, 500);
-            CircleColor = Color.Red;
-        }        
+        Position = startPosition;
+
+        CircleColor = Player.Authorized ? Color.Green : Color.Red;
+
+        _font = Game1.CurrentGame.MainFont;
     }
 
     public void Update(GameTime gameTime)
@@ -61,8 +63,10 @@ internal class SimpleUnit : IUnit
     }
 
     public void Draw(SpriteBatch spriteBatch)
-    {        
-        spriteBatch.Draw(Texture, Position, Color.White);
+    {
+        //spriteBatch.Draw(Texture, Position, Color.White);
+        spriteBatch.FillRectangle(Position, new Size2(Width, Height), Player.Color);
+        spriteBatch.DrawString(_font, Id.ToString(), CenterPosition, Color.White);
 
         if (IsSelected)
             spriteBatch.DrawCircle(CenterPosition, 50, 24, CircleColor, 1);        

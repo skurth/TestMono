@@ -4,9 +4,12 @@ using MonoGame.Extended;
 
 namespace TestMono.GameObjects;
 
-internal interface IUnit
+public interface IUnit
 {
-    public Texture2D Texture { get; set; }
+    //public Texture2D Texture { get; set; }
+    public int Id { get; set; }
+    public int Width { get; set; }
+    public int Height { get; set; }
     public Vector2 Position { get; set; }
     public Player Player { get; set; }
     public bool IsSelected { get; set; }

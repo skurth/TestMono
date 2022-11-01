@@ -1,16 +1,16 @@
 ﻿using LiteNetLib;
 using LiteNetLib.Utils;
 using Newtonsoft.Json;
-using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
-using TestMono.Network.Packets;
+using TestMono.Network.Packets.ClientToServer;
+using TestMono.Network.Packets.ServerToClient;
 
 namespace TestMono.Network.Server;
 
-internal class Server
+public class Server
 {
     private EventBasedNetListener _netListener;
     private NetManager _netManager;
@@ -20,23 +20,28 @@ internal class Server
 
     public List<string> MessagesReceived;
 
+    public ServerGameInstance GameInstance { get; set; }
+    public int ConnectedPlayersCount { get => _netManager.ConnectedPeersCount; }    
+
     public Server()
     {
-        MessagesReceived = new List<string>();
+        MessagesReceived = new List<string>();        
     }
 
     public void Start()
     {
         _netListener = new EventBasedNetListener();
         _netManager = new NetManager(_netListener);
-        _netPacketProcessor = new NetPacketProcessor();        
+        _netPacketProcessor = new NetPacketProcessor();
+
+        _netPacketProcessor.RegisterNestedType<InitGamePlayerInfo>(() => new InitGamePlayerInfo());        
 
         _netManager.Start(9050);
 
         _netListener.ConnectionRequestEvent += request =>
-        {
+        {            
             if (_netManager.ConnectedPeersCount < 10)
-                request.AcceptIfKey("SomeConnectionKey");
+                request.Accept();
             else
                 request.Reject();
         };
@@ -54,12 +59,30 @@ internal class Server
             _netPacketProcessor.ReadAllPackets(reader, peerFrom);   
         };
 
-        _netPacketProcessor.SubscribeReusable<FooPacket>((packet) => {
-            MessagesReceived.Add($"Client sent FooPacket: {JsonConvert.SerializeObject(packet)}");
+        _netPacketProcessor.SubscribeReusable<ClientInfoPacket, NetPeer>((packet, peerFrom) => {
+            MessagesReceived.Add($"Client sent InfoPacket: {JsonConvert.SerializeObject(packet)}");
+
+            GameInstance.AddPlayer(packet.PlayerId, peerFrom);
         });
-        _netPacketProcessor.SubscribeReusable<PositionPacket>((packet) => {
-            MessagesReceived.Add($"Client sent PositionPacket: {JsonConvert.SerializeObject(packet)}");
+
+        _netPacketProcessor.SubscribeReusable<MoveUnitRequestPacket, NetPeer>((packet, peerFrom) => {
+            MessagesReceived.Add($"Client sent MoveUnitPacket: {JsonConvert.SerializeObject(packet)}");
+
+            var orderPacket = new MoveUnitOrderPacket()
+            {
+                UnitId = packet.UnitId,
+                PositionX = packet.PositionX,
+                PositionY = packet.PositionY
+            };
+
+            // ToDo Check if ok?
+            GameInstance.ClientGameInstance.MoveUnitOrder(orderPacket);
+
+            // If OK
+            SendMoveUnitOrderPacket(orderPacket);
         });
+
+        GameInstance = new ServerGameInstance(this);
     }    
 
     public void PollEvents()
@@ -81,17 +104,15 @@ internal class Server
         }
 
         return sb.ToString();
+    }   
+
+    public void SendPacketInitGame(InitGamePacket packet)
+    {
+        _netManager.SendToAll(_netPacketProcessor.Write(packet), DeliveryMethod.ReliableOrdered);
     }
 
-    public void SendTest()
+    public void SendMoveUnitOrderPacket(MoveUnitOrderPacket packet)
     {
-        var writer = new NetDataWriter();
-        writer.Put($"This message is from Server (sent at {DateTime.Now})");
-        _netManager.SendToAll(writer, DeliveryMethod.ReliableOrdered);
-    }
-
-    public void SendTestPacket()
-    {
-        _netManager.SendToAll(_netPacketProcessor.Write(new FooPacket() { NumberValue = 3, StringValue = "Cat" }), DeliveryMethod.ReliableOrdered);
+        _netManager.SendToAll(_netPacketProcessor.Write(packet), DeliveryMethod.ReliableOrdered);
     }
 }
