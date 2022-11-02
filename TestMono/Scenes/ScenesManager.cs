@@ -1,6 +1,7 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using TestMono.Network.Client;
+using TestMono.Network.Server;
 
 namespace TestMono.Scenes;
 
@@ -27,7 +28,10 @@ public class ScenesManager
         CurrentScene = new MainScene(_graphics, _spriteBatch);
     }
 
-    public void CreateGameScene(CreateGameSceneInfo sceneInfo, ClientGameInstance clientGameInstance)
+    public void CreateGameScene(
+        CreateGameSceneInfo sceneInfo, 
+        ClientGameInstance clientGameInstance, 
+        ServerGameInstance serverGameInstance)
     {
         CurrentScene = new GameScene(
             _graphics, 
@@ -37,7 +41,8 @@ public class ScenesManager
             sceneInfo.Players,
             sceneInfo.LocalPlayer,
             sceneInfo.AppType,
-            clientGameInstance);
+            clientGameInstance,
+            serverGameInstance);
     }
 
     public void CurrentSceneUpdate(GameTime gameTime) => CurrentScene?.Update(gameTime);

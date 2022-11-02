@@ -1,10 +1,12 @@
 ﻿using LiteNetLib;
 using LiteNetLib.Utils;
 using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
+using TestMono.Network.Packets;
 using TestMono.Network.Packets.ClientToServer;
 using TestMono.Network.Packets.ServerToClient;
 
@@ -34,7 +36,8 @@ public class Server
         _netManager = new NetManager(_netListener);
         _netPacketProcessor = new NetPacketProcessor();
 
-        _netPacketProcessor.RegisterNestedType<InitGamePlayerInfo>(() => new InitGamePlayerInfo());        
+        _netPacketProcessor.RegisterNestedType<InitGamePlayerInfo>(() => new InitGamePlayerInfo());
+        //_netPacketProcessor.RegisterNestedType<MoveUnitRequestPacket>(() => new MoveUnitRequestPacket());
 
         _netManager.Start(9050);
 
@@ -56,30 +59,43 @@ public class Server
 
         _netListener.NetworkReceiveEvent += (peerFrom, reader, deliveryMethod) =>
         {
-            _netPacketProcessor.ReadAllPackets(reader, peerFrom);   
+            var packetType = (PacketType)reader.PeekInt(); //packetType = -132163544654 ??
+
+            switch (packetType)
+            {
+                case PacketType.ClientInfoPacket:
+                    var packet = reader.Get<ClientInfoPacket>();
+                    MessagesReceived.Add($"Client sent InfoPacket: {JsonConvert.SerializeObject(packet)}");
+                    GameInstance.AddPlayer(packet.PlayerId, peerFrom);
+                    // ??
+                    break;
+                case PacketType.InitGamePacket:
+                    // ??
+                    break;
+                case PacketType.MoveUnitRequestPacket:
+                    // ??
+                    break;
+                case PacketType.MoveUnitOrderPacket:
+                    // ??
+                    break;
+                default:
+                    break;
+            }
+
+            //_netPacketProcessor.ReadAllPackets(reader);
         };
 
-        _netPacketProcessor.SubscribeReusable<ClientInfoPacket, NetPeer>((packet, peerFrom) => {
-            MessagesReceived.Add($"Client sent InfoPacket: {JsonConvert.SerializeObject(packet)}");
+        //_netPacketProcessor.SubscribeReusable<ClientInfoPacket, NetPeer>((packet, peerFrom) =>
+        //{
+        //    MessagesReceived.Add($"Client sent InfoPacket: {JsonConvert.SerializeObject(packet)}");
 
-            GameInstance.AddPlayer(packet.PlayerId, peerFrom);
-        });
+        //    GameInstance.AddPlayer(packet.PlayerId, peerFrom);
+        //});
 
-        _netPacketProcessor.SubscribeReusable<MoveUnitRequestPacket, NetPeer>((packet, peerFrom) => {
-            MessagesReceived.Add($"Client sent MoveUnitPacket: {JsonConvert.SerializeObject(packet)}");
+        _netPacketProcessor.SubscribeNetSerializable<MoveUnitRequestPacket, NetPeer>((packet, peerFrom) => {
+            MessagesReceived.Add($"Client sent MoveUnitRequestPacket: {JsonConvert.SerializeObject(packet)}");            
 
-            var orderPacket = new MoveUnitOrderPacket()
-            {
-                UnitId = packet.UnitId,
-                PositionX = packet.PositionX,
-                PositionY = packet.PositionY
-            };
-
-            // ToDo Check if ok?
-            GameInstance.ClientGameInstance.MoveUnitOrder(orderPacket);
-
-            // If OK
-            SendMoveUnitOrderPacket(orderPacket);
+            GameInstance.AddPacketFromPlayer(packet, peerFrom);            
         });
 
         GameInstance = new ServerGameInstance(this);

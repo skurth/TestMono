@@ -3,13 +3,20 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using MonoGame.Extended;
 using MonoGame.Extended.ViewportAdapters;
+using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using TestMono.GameObjects;
 using TestMono.GameObjects.Map;
 using TestMono.GameObjects.Utils;
 using TestMono.Network.Client;
+using TestMono.Network.Packets;
+using TestMono.Network.Packets.ClientToServer;
+using TestMono.Network.Packets.ServerToClient;
+using TestMono.Network.Server;
 
 namespace TestMono.Scenes;
 
@@ -35,7 +42,10 @@ public class GameScene : IScene
 
     private ApplicationType AppType { get; init; }
 
-    private ClientGameInstance GameInstance { get; init; }
+    private ClientGameInstance ClientGameInstance { get; init; }
+    private ServerGameInstance ServerGameInstance { get; init; }
+
+    private MouseState _previousMouseState = new MouseState();
 
     public GameScene(
         GraphicsDeviceManager graphics, 
@@ -45,7 +55,8 @@ public class GameScene : IScene
         List<Player> players,
         Player localPlayer,
         ApplicationType appType,
-        ClientGameInstance gameInstance)
+        ClientGameInstance clientGameInstance,
+        ServerGameInstance serverGameInstance)
     {
         _graphics = graphics;
         _spriteBatch = spriteBatch;
@@ -58,26 +69,40 @@ public class GameScene : IScene
         Players = players;
         LocalPlayer = localPlayer;
         AppType = appType;
-        GameInstance = gameInstance;
+        ClientGameInstance = clientGameInstance;
+        ServerGameInstance = serverGameInstance;
         UnitsUtils = new UnitsUtils(this);
 
         window.Title = appType.ToString();
+
+        if (AppType == ApplicationType.Server)
+        {
+            Game1.CurrentGame.TargetElapsedTime = TimeSpan.FromTicks((long)(TimeSpan.TicksPerSecond / 10));            
+            //Game1.CurrentGame.MaxElapsedTime = TimeSpan.FromMilliseconds(500);
+            //Game1.CurrentGame.TargetElapsedTime = TimeSpan.FromMilliseconds(500);
+        }
     }
 
     public void Update(GameTime gameTime)
-    {            
-        var mouseState = Mouse.GetState();
-        if (mouseState.LeftButton == ButtonState.Pressed)
+    {
+        var mouseState = Mouse.GetState();        
+        if (mouseState.LeftButton == ButtonState.Pressed && _previousMouseState.LeftButton == ButtonState.Released)
         {
             var worldPosition = _camera.ScreenToWorld(new Vector2(mouseState.X, mouseState.Y));
             var worldPositionRectangle = new RectangleF(worldPosition.X, worldPosition.Y, 1, 1);
             TrySelectPlayerUnit(worldPositionRectangle);
         }
-        else if (mouseState.RightButton == ButtonState.Pressed)
+        else if (mouseState.RightButton == ButtonState.Pressed && _previousMouseState.RightButton == ButtonState.Released)
         {
             var worldPosition = _camera.ScreenToWorld(new Vector2(mouseState.X, mouseState.Y));
             MoveSelectedUnitRequest(worldPosition);
-        }            
+        }
+
+        if (AppType == ApplicationType.Server)
+        {
+            //System.Threading.Thread.Sleep(250);
+            ApplyPlayerPackets(gameTime);
+        }
 
         UpdateCamera(gameTime, mouseState);
 
@@ -94,6 +119,49 @@ public class GameScene : IScene
         {
             player.Update(gameTime);
         }
+
+        _previousMouseState = mouseState;
+    }
+
+    private void ApplyPlayerPackets(GameTime gameTime)
+    {
+        var packetsUnhandledAndOrdered = ServerGameInstance.PlayerPackets.Where(x => !x.Handled).OrderBy(x => x.Packet.Timestamp).ToList();        
+
+        foreach (var playerPacket in packetsUnhandledAndOrdered)
+        {
+            var basePacket = playerPacket.Packet;            
+
+            switch ((PacketType)basePacket.PacketType)
+            {
+                case PacketType.MoveUnitRequestPacket:
+                    ApplyPlayerPacketMoveUnitOrder((MoveUnitRequestPacket)basePacket);
+                    break;
+                default:
+                    throw new NotImplementedException($"PacketType {playerPacket.Packet.PacketType} not implemented");                    
+            }
+
+            playerPacket.Handled = true;
+        }        
+    }
+
+    private void ApplyPlayerPacketMoveUnitOrder(MoveUnitRequestPacket packet)
+    {
+        Debug.WriteLine($"{DateTime.Now} Server ApplyPlayerPacket -> {JsonConvert.SerializeObject(packet)}");
+
+        var orderPacket = new MoveUnitOrderPacket()
+        {
+            PacketType = (int)PacketType.MoveUnitOrderPacket,
+            Timestamp = new DateTimeOffset(DateTime.Now).ToUnixTimeMilliseconds(),
+            UnitId = packet.UnitId,
+            PositionX = packet.PositionX,
+            PositionY = packet.PositionY
+        };
+
+        // ToDo Check if ok?
+        ClientGameInstance.MoveUnitOrder(orderPacket);
+
+        // If OK
+        ServerGameInstance.Server.SendMoveUnitOrderPacket(orderPacket);
     }
 
     public void Draw(GameTime gameTime)
@@ -181,7 +249,7 @@ public class GameScene : IScene
             if (unit is null) 
                 return;
             
-            GameInstance.MoveUnitRequest(unit.Id, endPosition.X - unit.Width / 2, endPosition.Y - unit.Height / 2);            
+            ClientGameInstance.MoveUnitRequest(unit.Id, endPosition.X - unit.Width / 2, endPosition.Y - unit.Height / 2);            
         }            
     }
 

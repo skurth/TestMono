@@ -1,8 +1,10 @@
 ﻿using LiteNetLib;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using TestMono.GameObjects.Map;
 using TestMono.Network.Client;
+using TestMono.Network.Packets;
 using TestMono.Network.Packets.ServerToClient;
 
 namespace TestMono.Network.Server;
@@ -18,11 +20,14 @@ public class ServerGameInstance
 
     public ClientGameInstance ClientGameInstance { get; set; }
 
+    public List<PlayerPacket> PlayerPackets { get; set; }
+
     public ServerGameInstance(Server server)
     {
         Server = server;
         Players = new List<PlayerServerInfo>();
         ClientGameInstance = new ClientGameInstance(null);
+        PlayerPackets = new List<PlayerPacket>();
     }
 
     public void AddPlayer(string playerId, NetPeer peer)
@@ -39,6 +44,8 @@ public class ServerGameInstance
 
         var packet = new InitGamePacket()
         {
+            PacketType = (int)PacketType.InitGamePacket,
+            Timestamp = new DateTimeOffset(DateTime.Now).ToUnixTimeMilliseconds(),
             MapTilesX = tilesX,
             MapTilesY = tilesY
         };
@@ -65,13 +72,31 @@ public class ServerGameInstance
 
         // Server simulates Client        
         var sceneInfo = ClientGameInstance.CreateGameSceneInfo(packet, ApplicationType.Server);
-        Game1.CurrentGame.ScenesManager.CreateGameScene(sceneInfo, ClientGameInstance);
+        Game1.CurrentGame.ScenesManager.CreateGameScene(sceneInfo, ClientGameInstance, this);
+    }
+
+    public void AddPacketFromPlayer(IBasePacket packet, NetPeer peerFrom)
+    {
+        var playerInfo = Players.FirstOrDefault(x => x.Peer == peerFrom);
+        if (playerInfo is null)
+        {
+            throw new Exception("PlayerInfo not found");
+        }
+
+        PlayerPackets.Add(new PlayerPacket() { PlayerInfo = playerInfo, Packet = packet });
     }
 
     public class PlayerServerInfo
     {
         public string Id { get; set; }
         public NetPeer Peer { get; set; }
+    }
+    
+    public class PlayerPacket
+    {
+        public PlayerServerInfo PlayerInfo { get; set; }
+        public IBasePacket Packet { get; set; }
+        public bool Handled { get; set; } = false;
     }
 
 }

@@ -1,7 +1,11 @@
-﻿using System.Collections.Generic;
+﻿using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using TestMono.GameObjects;
 using TestMono.GameObjects.Map;
 using TestMono.Helpers;
+using TestMono.Network.Packets;
 using TestMono.Network.Packets.ClientToServer;
 using TestMono.Network.Packets.ServerToClient;
 using TestMono.Scenes;
@@ -62,10 +66,14 @@ public class ClientGameInstance
     {
         var packet = new MoveUnitRequestPacket()
         {
+            PacketType = (int)PacketType.MoveUnitRequestPacket,
+            Timestamp = new DateTimeOffset(DateTime.Now).ToUnixTimeMilliseconds(),
             UnitId = unitId,
             PositionX = endPositionX,
             PositionY = endPositionY
         };
+
+        Debug.WriteLine($"{DateTime.Now} Client to Server: {JsonConvert.SerializeObject(packet)}");
 
         Client.SendMoveUnitRequestPacket(packet);
     }
