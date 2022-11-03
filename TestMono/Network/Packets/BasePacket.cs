@@ -25,6 +25,10 @@ public enum PacketType
     InitGamePacket = 2,
     MoveUnitRequestPacket = 3,
     MoveUnitOrderPacket = 4,
+    MoveUnitStopOrderPacket = 5,
+    BuildingSetFoundationRequestPacket = 6,
+    BuildingSetFoundationOrderPacket = 7,
+    BuildingSetBuiltOrderPacket = 8,
     ClientStartSyncServerTimestampPacket = 99,
     ServerSyncTimestampResponsePacket = 100
 }

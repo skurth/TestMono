@@ -2,9 +2,9 @@
 using Microsoft.Xna.Framework.Graphics;
 using MonoGame.Extended;
 
-namespace TestMono.GameObjects;
+namespace TestMono.GameObjects.Units;
 
-public interface IUnit
+public interface IBuilding
 {
     //public Texture2D Texture { get; set; }
     public int Id { get; set; }
@@ -15,9 +15,8 @@ public interface IUnit
     public bool IsSelected { get; set; }
     public RectangleF Rectangle { get; }
 
-    public Vector2 EndPosition { get; set; }
+    public BuildingBuiltState State { get; set; }
 
-    public float MovementSpeed { get; set; }
     public Color CircleColor { get; set; }
 
     public void Update(GameTime gameTime);

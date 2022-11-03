@@ -37,13 +37,15 @@ public class Client
         _netListener = new EventBasedNetListener();
         _netManager = new NetManager(_netListener);        
         _netSerializer = new NetSerializer();
-        _netSerializer.RegisterNestedType<InitGamePlayerInfo>(() => new InitGamePlayerInfo());        
+        _netSerializer.RegisterNestedType<InitGamePlayerInfo>(() => new InitGamePlayerInfo());
 
+#if DEBUG
         //_netManager.SimulateLatency = true;
         //_netManager.SimulationMinLatency = 1000;
-        //_netManager.SimulationMaxLatency = 3000;
-        //_netManager.SimulationPacketLossChance = 99;
-#if DEBUG
+        //_netManager.SimulationMaxLatency = 3000;        
+        //_netManager.SimulatePacketLoss = true;
+        //_netManager.SimulationPacketLossChance = 50;        
+
         _netManager.DisconnectTimeout = 60000;
 #endif
 
@@ -55,7 +57,7 @@ public class Client
             SendClientInfoPacket();
         };
 
-        _netListener.NetworkReceiveEvent += (server, reader, deliveryMethod) =>
+        _netListener.NetworkReceiveEvent += (server, reader, channel, deliveryMethod) =>
         {
             var packetType = (PacketType)reader.PeekInt();
 
@@ -74,6 +76,27 @@ public class Client
                         var packet = _netSerializer.Deserialize<MoveUnitOrderPacket>(reader);
                         MessagesReceived.Add($"Server sent MoveUnitOrderPacket: {JsonConvert.SerializeObject(packet)}");
                         GameInstance.MoveUnitOrder(packet);
+                        break;
+                    }
+                case PacketType.MoveUnitStopOrderPacket:
+                    {
+                        var packet = _netSerializer.Deserialize<MoveUnitStopOrderPacket>(reader);
+                        MessagesReceived.Add($"Server sent MoveUnitStopOrderPacket: {JsonConvert.SerializeObject(packet)}");
+                        GameInstance.MoveUnitStopOrder(packet);
+                        break;
+                    }
+                case PacketType.BuildingSetFoundationOrderPacket:
+                    {
+                        var packet = _netSerializer.Deserialize<BuildingSetFoundationOrderPacket>(reader);
+                        MessagesReceived.Add($"Server sent BuildingSetFoundationOrderPacket: {JsonConvert.SerializeObject(packet)}");
+                        GameInstance.BuildingSetFoundationOrder(packet);
+                        break;
+                    }
+                case PacketType.BuildingSetBuiltOrderPacket:
+                    {
+                        var packet = _netSerializer.Deserialize<BuildingSetBuiltOrderPacket>(reader);
+                        MessagesReceived.Add($"Server sent BuildingSetBuiltOrderPacket: {JsonConvert.SerializeObject(packet)}");
+                        GameInstance.BuildingSetBuiltOrder(packet);
                         break;
                     }
                 case PacketType.ServerSyncTimestampResponsePacket:
@@ -125,6 +148,11 @@ public class Client
     }
 
     public void SendMoveUnitRequestPacket(MoveUnitRequestPacket packet)
+    {
+        _netManager.SendToAll(_netSerializer.Serialize(packet), DeliveryMethod.ReliableOrdered);
+    }
+
+    public void SendBuildingSetFoundationRequestPacket(BuildingSetFoundationRequestPacket packet)
     {
         _netManager.SendToAll(_netSerializer.Serialize(packet), DeliveryMethod.ReliableOrdered);
     }

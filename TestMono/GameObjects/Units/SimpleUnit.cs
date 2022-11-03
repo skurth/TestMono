@@ -2,7 +2,7 @@
 using Microsoft.Xna.Framework.Graphics;
 using MonoGame.Extended;
 
-namespace TestMono.GameObjects;
+namespace TestMono.GameObjects.Units;
 
 internal class SimpleUnit : IUnit
 {
@@ -12,14 +12,14 @@ internal class SimpleUnit : IUnit
     public int Height { get; set; }
     public Vector2 Position { get; set; }
     public Player Player { get; set; }
-    public bool IsSelected { get; set; }    
+    public bool IsSelected { get; set; }
 
     private Vector2 CenterPosition { get => new Vector2(Position.X + Width / 2, Position.Y + Height / 2); }
 
     public RectangleF Rectangle { get => new RectangleF(Position.X, Position.Y, Width, Height); }
 
     public Vector2 EndPosition { get; set; }
-    
+
     public float MovementSpeed { get; set; }
 
     public Color CircleColor { get; set; }
@@ -44,10 +44,10 @@ internal class SimpleUnit : IUnit
     }
 
     public void Update(GameTime gameTime)
-    {       
+    {
         if (EndPosition != Vector2.Zero)
         {
-            var direction = Position - EndPosition;            
+            var direction = Position - EndPosition;
 
             if (direction.Length() < MovementSpeed * (float)gameTime.ElapsedGameTime.TotalSeconds)
             {
@@ -59,7 +59,7 @@ internal class SimpleUnit : IUnit
             direction.Normalize();
 
             Position -= direction * MovementSpeed * (float)gameTime.ElapsedGameTime.TotalSeconds;
-        }       
+        }
     }
 
     public void Draw(SpriteBatch spriteBatch)
@@ -69,9 +69,9 @@ internal class SimpleUnit : IUnit
         spriteBatch.DrawString(_font, Id.ToString(), CenterPosition, Color.White);
 
         if (IsSelected)
-            spriteBatch.DrawCircle(CenterPosition, 50, 24, CircleColor, 1);        
-    }  
-    
+            spriteBatch.DrawCircle(CenterPosition, 50, 24, CircleColor, 1);
+    }
+
     public bool TrySelect(RectangleF mouseClick)
     {
         IsSelected = false;
@@ -81,5 +81,5 @@ internal class SimpleUnit : IUnit
         }
 
         return IsSelected;
-    }    
+    }
 }

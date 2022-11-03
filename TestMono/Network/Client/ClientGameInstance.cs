@@ -76,6 +76,46 @@ public class ClientGameInstance
         Debug.WriteLine($"{DateTime.Now} Client to Server: {JsonConvert.SerializeObject(packet)}");
 
         Client.SendMoveUnitRequestPacket(packet);
+    }    
+
+    public void MoveUnitOrder(MoveUnitOrderPacket packet)
+    {
+        var gameScene = Game1.CurrentGame.ScenesManager.CurrentScene as GameScene;
+        gameScene.MoveUnitOrder(packet.UnitId, packet.PositionX, packet.PositionY);
+    }
+
+    public void MoveUnitStopOrder(MoveUnitStopOrderPacket packet)
+    {
+        var gameScene = Game1.CurrentGame.ScenesManager.CurrentScene as GameScene;
+        gameScene.MoveUnitStopOrder(packet.UnitId, packet.PositionX, packet.PositionY);
+    }
+
+    public void BuildingSetFoundationRequest(string playerId, float endPositionX, float endPositionY)
+    {
+        var packet = new BuildingSetFoundationRequestPacket()
+        {
+            PacketType = (int)PacketType.BuildingSetFoundationRequestPacket,
+            Timestamp = TimeUtils.GetCurrentTimestamp(),
+            PlayerId = playerId,
+            PositionX = endPositionX,
+            PositionY = endPositionY
+        };
+
+        Debug.WriteLine($"{DateTime.Now} Client to Server: {JsonConvert.SerializeObject(packet)}");
+
+        Client.SendBuildingSetFoundationRequestPacket(packet);
+    }
+
+    public void BuildingSetFoundationOrder(BuildingSetFoundationOrderPacket packet)
+    {
+        var gameScene = Game1.CurrentGame.ScenesManager.CurrentScene as GameScene;
+        gameScene.BuildingSetFoundationOrder(packet.BuildingId, packet.PlayerId, packet.PositionX, packet.PositionY);
+    }
+
+    public void BuildingSetBuiltOrder(BuildingSetBuiltOrderPacket packet)
+    {
+        var gameScene = Game1.CurrentGame.ScenesManager.CurrentScene as GameScene;
+        gameScene.BuildingSetBuiltOrder(packet.BuildingId);
     }
 
     public void SyncServerTimestampRequest()
@@ -89,12 +129,6 @@ public class ClientGameInstance
         Debug.WriteLine($"{DateTime.Now} Client to Server: {JsonConvert.SerializeObject(packet)}");
 
         Client.SendSyncServerTimestampRequestPacket(packet);
-    }
-
-    public void MoveUnitOrder(MoveUnitOrderPacket packet)
-    {
-        var gameScene = Game1.CurrentGame.ScenesManager.CurrentScene as GameScene;
-        gameScene.MoveUnitOrder(packet.UnitId, packet.PositionX, packet.PositionY);
     }
 
     public void SyncServerTimestamp(ServerSyncTimestampResponsePacket packet)

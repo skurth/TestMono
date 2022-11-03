@@ -10,8 +10,9 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using TestMono.GameObjects;
+using TestMono.GameObjects.Buildings;
 using TestMono.GameObjects.Map;
-using TestMono.GameObjects.Utils;
+using TestMono.GameObjects.Units;
 using TestMono.Helpers;
 using TestMono.Network.Client;
 using TestMono.Network.Packets;
@@ -40,6 +41,7 @@ public class GameScene : IScene
     public Map Map { get; set; }
 
     private UnitsUtils UnitsUtils { get; set; }
+    private BuildingsUtils BuildingsUtils { get; set; }
 
     private ApplicationType AppType { get; init; }
 
@@ -53,7 +55,7 @@ public class GameScene : IScene
 
 
     public GameScene(
-        GraphicsDeviceManager graphics, 
+        GraphicsDeviceManager graphics,
         SpriteBatch spriteBatch,
         GameWindow window,
         Map map,
@@ -77,12 +79,13 @@ public class GameScene : IScene
         ClientGameInstance = clientGameInstance;
         ServerGameInstance = serverGameInstance;
         UnitsUtils = new UnitsUtils(this);
+        BuildingsUtils = new BuildingsUtils(this);
 
         window.Title = appType.ToString();
 
         if (AppType == ApplicationType.Server)
         {
-            Game1.CurrentGame.TargetElapsedTime = TimeSpan.FromTicks((long)(TimeSpan.TicksPerSecond / 10));            
+            Game1.CurrentGame.TargetElapsedTime = TimeSpan.FromTicks((long)(TimeSpan.TicksPerSecond / 10));
             //Game1.CurrentGame.MaxElapsedTime = TimeSpan.FromMilliseconds(500);
             //Game1.CurrentGame.TargetElapsedTime = TimeSpan.FromMilliseconds(500);
         }
@@ -92,18 +95,28 @@ public class GameScene : IScene
             {
                 var lookAtPosition = LocalPlayer.Units[0].Position;
                 _camera.LookAt(lookAtPosition);
-            }            
+            }
         }
     }
 
     public void Update(GameTime gameTime)
     {
-        var mouseState = Mouse.GetState();        
+        var keyboardState = Keyboard.GetState();
+        var mouseState = Mouse.GetState();
+
         if (mouseState.LeftButton == ButtonState.Pressed && _previousMouseState.LeftButton == ButtonState.Released)
         {
-            var worldPosition = _camera.ScreenToWorld(new Vector2(mouseState.X, mouseState.Y));
-            var worldPositionRectangle = new RectangleF(worldPosition.X, worldPosition.Y, 1, 1);
-            TrySelectPlayerUnit(worldPositionRectangle);
+            if (keyboardState.IsKeyDown(Keys.H))
+            {
+                var worldPosition = _camera.ScreenToWorld(new Vector2(mouseState.X, mouseState.Y));
+                BuildingSetFoundationRequest(worldPosition);
+            }
+            else
+            {
+                var worldPosition = _camera.ScreenToWorld(new Vector2(mouseState.X, mouseState.Y));
+                var worldPositionRectangle = new RectangleF(worldPosition.X, worldPosition.Y, 1, 1);
+                TrySelectPlayerGameObject(worldPositionRectangle);
+            }
         }
         else if (mouseState.RightButton == ButtonState.Pressed && _previousMouseState.RightButton == ButtonState.Released)
         {
@@ -115,6 +128,7 @@ public class GameScene : IScene
         {
             //System.Threading.Thread.Sleep(250);
             ApplyPlayerPackets(gameTime);
+            CheckCollisions(gameTime);
         }
         else if (AppType == ApplicationType.Client)
         {
@@ -124,17 +138,14 @@ public class GameScene : IScene
                 _lastServerTimestampSync = DateTime.Now;
             }
         }
-        
+
         UpdateCamera(gameTime, mouseState);
 
-        var deltaSeconds = (float)gameTime.ElapsedGameTime.TotalSeconds;
-        var keyboardState = Keyboard.GetState();
-
         if (keyboardState.IsKeyDown(Keys.R))
-            _camera.ZoomIn(deltaSeconds);
+            _camera.ZoomIn((float)gameTime.ElapsedGameTime.TotalSeconds);
 
         if (keyboardState.IsKeyDown(Keys.F))
-            _camera.ZoomOut(deltaSeconds);
+            _camera.ZoomOut((float)gameTime.ElapsedGameTime.TotalSeconds);
 
         foreach (var player in Players)
         {
@@ -146,26 +157,28 @@ public class GameScene : IScene
 
     private void ApplyPlayerPackets(GameTime gameTime)
     {
-        var packetsUnhandledAndOrdered = ServerGameInstance.PlayerPackets.Where(x => !x.Handled).OrderBy(x => x.Packet.Timestamp).ToList();        
+        var packetsUnhandledAndOrdered = ServerGameInstance.PlayerPackets.Where(x => !x.Handled).OrderBy(x => x.Packet.Timestamp).ToList();
 
         foreach (var playerPacket in packetsUnhandledAndOrdered)
         {
-            var basePacket = playerPacket.Packet;            
+            var basePacket = playerPacket.Packet;
 
             switch ((PacketType)basePacket.PacketType)
             {
                 case PacketType.MoveUnitRequestPacket:
-                    ApplyPlayerPacketMoveUnitOrder((MoveUnitRequestPacket)basePacket);
+                    ApplyPlayerPacket_MoveUnitRequest((MoveUnitRequestPacket)basePacket);
+                    break;
+                case PacketType.BuildingSetFoundationRequestPacket:
+                    ApplyPlayerPacket_BuildingSetFoundationRequest((BuildingSetFoundationRequestPacket)basePacket);
                     break;
                 default:
-                    throw new NotImplementedException($"PacketType {playerPacket.Packet.PacketType} not implemented");                    
+                    throw new NotImplementedException($"PacketType {playerPacket.Packet.PacketType} not implemented");
             }
 
             playerPacket.Handled = true;
-        }        
+        }
     }
-
-    private void ApplyPlayerPacketMoveUnitOrder(MoveUnitRequestPacket packet)
+    private void ApplyPlayerPacket_MoveUnitRequest(MoveUnitRequestPacket packet)
     {
         Debug.WriteLine($"{DateTime.Now} Server ApplyPlayerPacket -> {JsonConvert.SerializeObject(packet)}");
 
@@ -183,6 +196,92 @@ public class GameScene : IScene
 
         // If OK
         ServerGameInstance.Server.SendMoveUnitOrderPacket(orderPacket);
+    }
+    private void ApplyPlayerPacket_BuildingSetFoundationRequest(BuildingSetFoundationRequestPacket packet)
+    {
+        Debug.WriteLine($"{DateTime.Now} Server ApplyPlayerPacket -> {JsonConvert.SerializeObject(packet)}");        
+
+        var tmpHouse = new House(-1, LocalPlayer, Vector2.Zero); //Just to get Width and Height
+        if (!BuildingsUtils.CanBuildBuilding(packet.PositionX, packet.PositionY, tmpHouse.Width, tmpHouse.Height))
+        {
+            //Response to requesting client -> Can't be built
+            return;
+        }
+
+        var orderPacket = new BuildingSetFoundationOrderPacket()
+        {
+            PacketType = (int)PacketType.BuildingSetFoundationOrderPacket,
+            Timestamp = TimeUtils.GetCurrentTimestamp(),
+            BuildingId = BuildingsUtils.GetNextBuildingId(),
+            PlayerId = packet.PlayerId,
+            PositionX = packet.PositionX,
+            PositionY = packet.PositionY
+        };
+
+        ClientGameInstance.BuildingSetFoundationOrder(orderPacket);        
+        ServerGameInstance.Server.SendBuildingSetFoundationOrderPacket(orderPacket);
+    }
+
+    private void CheckCollisions(GameTime gameTime)
+    {
+        foreach (var player in Players)
+        {
+            foreach (var unit in player.Units)
+            {
+                if (unit.EndPosition == Vector2.Zero) 
+                    continue;
+
+                IBuilding collisionBuilding = null;
+                if (CheckUnitCollision(unit, ref collisionBuilding))
+                {
+                    // finish building
+                    if (collisionBuilding.State == BuildingBuiltState.Foundation && collisionBuilding.Player == unit.Player)
+                    {
+                        BuildingSetBuiltOrder(collisionBuilding.Id);
+
+                        ServerGameInstance.Server.SendBuildingSetBuiltOrderPacket(new BuildingSetBuiltOrderPacket()
+                        {
+                            PacketType = (int)PacketType.BuildingSetBuiltOrderPacket,
+                            Timestamp = TimeUtils.GetCurrentTimestamp(),
+                            BuildingId = collisionBuilding.Id,
+                        });
+                    }
+
+                    unit.EndPosition = Vector2.Zero;
+
+                    // throw unit outside of building
+                    var unitTargetPosition = new Vector2(collisionBuilding.Position.X + collisionBuilding.Width + 1, collisionBuilding.Position.Y + collisionBuilding.Height + 1);
+
+                    MoveUnitStopOrder(unit.Id, unitTargetPosition.X, unitTargetPosition.Y);
+
+                    ServerGameInstance.Server.SendMoveUnitStopOrderPacket(new MoveUnitStopOrderPacket()
+                    {
+                        PacketType = (int)PacketType.MoveUnitStopOrderPacket,
+                        Timestamp = TimeUtils.GetCurrentTimestamp(),
+                        UnitId = unit.Id,
+                        PositionX = unitTargetPosition.X,
+                        PositionY = unitTargetPosition.Y
+                    });
+                }
+            }
+        }
+    }
+
+    private bool CheckUnitCollision(IUnit unit, ref IBuilding collisionBuilding)
+    {
+        foreach (var player in Players)
+        {
+            foreach (var building in player.Buildings)
+            {
+                if (unit.Rectangle.Intersects(building.Rectangle))
+                {
+                    collisionBuilding = building;
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     public void Draw(GameTime gameTime)
@@ -245,16 +344,17 @@ public class GameScene : IScene
         return movementDirection;
     }
 
-    public void TrySelectPlayerUnit(RectangleF mouseClick)
+    public void TrySelectPlayerGameObject(RectangleF mouseClick)
     {
         foreach (var player in Players)
         {
-            player.UnselectAllUnits();                
+            player.UnselectAllUnits();
+            player.UnselectAllBuildings();
         }
 
         foreach (var player in Players)
         {
-            if (player.TrySelectUnit(mouseClick))
+            if (player.TrySelectUnit(mouseClick) || player.TrySelectBuilding(mouseClick))
             {
                 return;
             }
@@ -263,19 +363,18 @@ public class GameScene : IScene
 
     public void MoveSelectedUnitRequest(Vector2 endPosition)
     {
-        if (!Map.IsInside(endPosition)) 
+        if (!Map.IsInside(endPosition))
             return;
 
         if (LocalPlayer is not null)
         {
             var unit = LocalPlayer.Units.FirstOrDefault(x => x.IsSelected);
-            if (unit is null) 
+            if (unit is null)
                 return;
-            
-            ClientGameInstance.MoveUnitRequest(unit.Id, endPosition.X - unit.Width / 2, endPosition.Y - unit.Height / 2);            
-        }            
-    }
 
+            ClientGameInstance.MoveUnitRequest(unit.Id, endPosition.X - unit.Width / 2, endPosition.Y - unit.Height / 2);
+        }
+    }
     public void MoveUnitOrder(int unitId, float endPositionX, float endPositionY)
     {
         var unit = UnitsUtils.GetUnitById(unitId);
@@ -283,6 +382,52 @@ public class GameScene : IScene
             return;
 
         unit.EndPosition = new Vector2(endPositionX, endPositionY);
+    }
+
+    public void MoveUnitStopOrder(int unitId, float endPositionX, float endPositionY)
+    {
+        var unit = UnitsUtils.GetUnitById(unitId);
+        if (unit == null)
+            return;
+
+        unit.EndPosition = new Vector2(endPositionX, endPositionY);
+    }
+
+    public void BuildingSetFoundationRequest(Vector2 endPosition)
+    {
+        if (!Map.IsInside(endPosition))
+            return;
+
+        if (LocalPlayer is not null)
+        {
+            var tmpHouse = new House(-1, LocalPlayer, Vector2.Zero); //Just to get Width and Height
+
+            ClientGameInstance.BuildingSetFoundationRequest(LocalPlayer.Id, endPosition.X - tmpHouse.Width / 2, endPosition.Y - tmpHouse.Height / 2);
+        }
+    }
+    public void BuildingSetFoundationOrder(int buildingId, string playerId, float endPositionX, float endPositionY)
+    {
+        var player = Players.FirstOrDefault(x => x.Id.Equals(playerId, StringComparison.OrdinalIgnoreCase));
+        if (player is null)
+            return;
+
+        var buildingPosition = new Vector2(endPositionX, endPositionY);
+        var building = new House(buildingId, player, buildingPosition);
+        player.Buildings.Add(building);
+
+        if (LocalPlayer is not null)
+        {
+            MoveSelectedUnitRequest(building.CenterPosition);
+        }
+    }
+
+    public void BuildingSetBuiltOrder(int buildingId)
+    {
+        var building = BuildingsUtils.GetBuildingById(buildingId);
+        if (building is null)
+            return;
+
+        building.State = BuildingBuiltState.Built;
     }
 
     public void SetTimestampInfo(TimestampInfo timestampInfo)
@@ -311,21 +456,19 @@ public class GameScene : IScene
 
         return sb.ToString();
     }
-
-
     private string GetTimestampInfoDiagnostics()
     {
         var sb = new StringBuilder();
 
         if (AppType == ApplicationType.Server)
         {
-            
+
         }
         else
         {
             if (_timestampInfo is null)
                 return String.Empty;
-            
+
             sb.AppendLine($"Server Time: {_timestampInfo.ServerTime.ToString("HH:mm:ss.ffffff")}");
             sb.AppendLine($"Latency: {_timestampInfo.Latency}ms");
             sb.AppendLine($"Server Delta: {_timestampInfo.ServerDelta}ms");

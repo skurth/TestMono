@@ -2,6 +2,7 @@
 using Microsoft.Xna.Framework.Graphics;
 using MonoGame.Extended;
 using System.Collections.Generic;
+using TestMono.GameObjects.Units;
 
 namespace TestMono.GameObjects;
 
@@ -10,6 +11,7 @@ public class Player
     public string Id { get; set; }
     public bool Authorized { get; set; }
     public List<IUnit> Units { get; set; }
+    public List<IBuilding> Buildings { get; set; }
     public Color Color { get; set; }
 
     public Player(
@@ -24,6 +26,7 @@ public class Player
         Color = color;
 
         Units = new List<IUnit>();
+        Buildings = new List<IBuilding>();
 
         var startUnit = new SimpleUnit(startUnitId, this, startUnitPosition);
         Units.Add(startUnit);        
@@ -39,6 +42,11 @@ public class Player
 
     public void Draw(SpriteBatch spriteBatch)
     {
+        foreach (var building in Buildings)
+        {
+            building.Draw(spriteBatch);
+        }
+
         foreach (var unit in Units)
         {
             unit.Draw(spriteBatch);
@@ -66,13 +74,24 @@ public class Player
         return false;
     }
 
-    public void MoveSelectedUnit(Vector2 endPosition)
+    public void UnselectAllBuildings()
     {
-        foreach (var unit in Units)
+        foreach (var building in Buildings)
         {
-            if (!unit.IsSelected) { continue; }
-
-            unit.EndPosition = new Vector2(endPosition.X - unit.Width / 2, endPosition.Y - unit.Height / 2);
+            building.IsSelected = false;
         }
+    }
+
+    public bool TrySelectBuilding(RectangleF mouseClick)
+    {
+        foreach (var building in Buildings)
+        {
+            if (building.TrySelect(mouseClick))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

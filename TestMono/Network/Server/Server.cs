@@ -61,7 +61,7 @@ public class Server
             //peer.Send(writer, DeliveryMethod.ReliableOrdered);
         };
 
-        _netListener.NetworkReceiveEvent += (peerFrom, reader, deliveryMethod) =>
+        _netListener.NetworkReceiveEvent += (peerFrom, reader, channel, deliveryMethod) =>
         {
             var packetType = (PacketType)reader.PeekInt();
 
@@ -78,6 +78,13 @@ public class Server
                     {
                         var packet = _netSerializer.Deserialize<MoveUnitRequestPacket>(reader);
                         MessagesReceived.Add($"Client sent MoveUnitRequestPacket: {JsonConvert.SerializeObject(packet)}");
+                        GameInstance.AddPacketFromPlayer(packet, peerFrom);
+                        break;
+                    }
+                case PacketType.BuildingSetFoundationRequestPacket:
+                    {
+                        var packet = _netSerializer.Deserialize<BuildingSetFoundationRequestPacket>(reader);
+                        MessagesReceived.Add($"Client sent BuildingSetFoundationRequestPacket: {JsonConvert.SerializeObject(packet)}");
                         GameInstance.AddPacketFromPlayer(packet, peerFrom);
                         break;
                     }
@@ -128,6 +135,21 @@ public class Server
     }
 
     public void SendMoveUnitOrderPacket(MoveUnitOrderPacket packet)
+    {
+        _netManager.SendToAll(_netSerializer.Serialize(packet), DeliveryMethod.ReliableOrdered);
+    }
+
+    public void SendMoveUnitStopOrderPacket(MoveUnitStopOrderPacket packet)
+    {
+        _netManager.SendToAll(_netSerializer.Serialize(packet), DeliveryMethod.ReliableOrdered);
+    }
+
+    public void SendBuildingSetFoundationOrderPacket(BuildingSetFoundationOrderPacket packet)
+    {
+        _netManager.SendToAll(_netSerializer.Serialize(packet), DeliveryMethod.ReliableOrdered);
+    }
+
+    public void SendBuildingSetBuiltOrderPacket(BuildingSetBuiltOrderPacket packet)
     {
         _netManager.SendToAll(_netSerializer.Serialize(packet), DeliveryMethod.ReliableOrdered);
     }

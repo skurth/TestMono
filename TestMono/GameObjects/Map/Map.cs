@@ -7,9 +7,9 @@ namespace TestMono.GameObjects.Map;
 public class Map
 {
     public const int _MAP_MIN_TILES_X = 5;
-    public const int _MAP_MAX_TILES_X = 36;
+    public const int _MAP_MAX_TILES_X = 12;
     public const int _MAP_MIN_TILES_Y = 5;
-    public const int _MAP_MAX_TILES_Y = 24;
+    public const int _MAP_MAX_TILES_Y = 10;
 
     public List<MapTile> Tiles { get; set; }
     public Vector2 MaxMapSize { get; set; }
