@@ -16,8 +16,8 @@ public class Client
     public string PlayerId { get; init; }
 
     private EventBasedNetListener _netListener;
-    private NetManager _netManager;
-    private NetPacketProcessor _netPacketProcessor;
+    private NetManager _netManager;    
+    private NetSerializer _netSerializer;
 
     public bool IsRunning => _netManager is not null && _netManager.IsRunning;
 
@@ -34,16 +34,17 @@ public class Client
     public void Connect()
     {
         _netListener = new EventBasedNetListener();
-        _netManager = new NetManager(_netListener);
-        _netPacketProcessor = new NetPacketProcessor();
-
-        _netPacketProcessor.RegisterNestedType<InitGamePlayerInfo>(() => new InitGamePlayerInfo());
-        _netPacketProcessor.RegisterNestedType<MoveUnitRequestPacket>(() => new MoveUnitRequestPacket());
+        _netManager = new NetManager(_netListener);        
+        _netSerializer = new NetSerializer();
+        _netSerializer.RegisterNestedType<InitGamePlayerInfo>(() => new InitGamePlayerInfo());        
 
         //_netManager.SimulateLatency = true;
         //_netManager.SimulationMinLatency = 1000;
         //_netManager.SimulationMaxLatency = 3000;
         //_netManager.SimulationPacketLossChance = 99;
+#if DEBUG
+        _netManager.DisconnectTimeout = 60000;
+#endif
 
         _netManager.Start();
         _netManager.Connect("localhost", 9050, "TestMono");
@@ -55,21 +56,42 @@ public class Client
 
         _netListener.NetworkReceiveEvent += (server, reader, deliveryMethod) =>
         {
-            _netPacketProcessor.ReadAllPackets(reader, server);
+            var packetType = (PacketType)reader.PeekInt();
+
+            switch (packetType)
+            {
+                case PacketType.InitGamePacket:
+                    {
+                        var packet = _netSerializer.Deserialize<InitGamePacket>(reader);
+                        MessagesReceived.Add($"Server sent InitGamePacket: {JsonConvert.SerializeObject(packet)}");
+                        var sceneInfo = ClientGameInstance.CreateGameSceneInfo(packet, ApplicationType.Client);
+                        Game1.CurrentGame.ScenesManager.CreateGameScene(sceneInfo, GameInstance, null);
+                        break;
+                    }
+                case PacketType.MoveUnitOrderPacket:
+                    {
+                        var packet = _netSerializer.Deserialize<MoveUnitOrderPacket>(reader);
+                        MessagesReceived.Add($"Client sent InfoPacket: {JsonConvert.SerializeObject(packet)}");
+                        GameInstance.MoveUnitOrder(packet);
+                        break;
+                    }
+                default:
+                    throw new NotImplementedException($"Unknown PacketType {reader.PeekInt()}");
+            }            
         };                
 
-        _netPacketProcessor.SubscribeReusable<InitGamePacket>((packet) => {
-            MessagesReceived.Add($"Server sent InitGamePacket: {JsonConvert.SerializeObject(packet)}");
+        //_netPacketProcessor.SubscribeReusable<InitGamePacket>((packet) => {
+        //    MessagesReceived.Add($"Server sent InitGamePacket: {JsonConvert.SerializeObject(packet)}");
 
-            var sceneInfo = ClientGameInstance.CreateGameSceneInfo(packet, ApplicationType.Client);
-            Game1.CurrentGame.ScenesManager.CreateGameScene(sceneInfo, GameInstance, null);
-        });
+        //    var sceneInfo = ClientGameInstance.CreateGameSceneInfo(packet, ApplicationType.Client);
+        //    Game1.CurrentGame.ScenesManager.CreateGameScene(sceneInfo, GameInstance, null);
+        //});
+        
+        //_netPacketProcessor.SubscribeReusable<MoveUnitOrderPacket, NetPeer>((packet, peerFrom) => {
+        //    MessagesReceived.Add($"Client sent InfoPacket: {JsonConvert.SerializeObject(packet)}");
 
-        _netPacketProcessor.SubscribeReusable<MoveUnitOrderPacket, NetPeer>((packet, peerFrom) => {
-            MessagesReceived.Add($"Client sent InfoPacket: {JsonConvert.SerializeObject(packet)}");
-
-            GameInstance.MoveUnitOrder(packet);            
-        });
+        //    GameInstance.MoveUnitOrder(packet);            
+        //});
 
         GameInstance = new ClientGameInstance(this);
     }
@@ -97,26 +119,19 @@ public class Client
 
     public void SendClientInfoPacket()
     {
-        //_netManager.SendToAll(_netPacketProcessor.Write(new ClientInfoPacket() { 
-        //    PacketType = (int)PacketType.ClientInfoPacket, 
-        //    Timestamp = new DateTimeOffset(DateTime.Now).ToUnixTimeMilliseconds(), 
-        //    PlayerId = PlayerId }), DeliveryMethod.ReliableOrdered);
-
         var packet = new ClientInfoPacket()
         {
             PacketType = (int)PacketType.ClientInfoPacket,
             Timestamp = new DateTimeOffset(DateTime.Now).ToUnixTimeMilliseconds(),
             PlayerId = PlayerId
         };
-
-        var writer = new NetDataWriter();
-        writer.Put(packet);
-        _netManager.SendToAll(writer, DeliveryMethod.ReliableOrdered);
+        
+        _netManager.SendToAll(_netSerializer.Serialize(packet), DeliveryMethod.ReliableOrdered);
     }
 
     public void SendMoveUnitRequestPacket(MoveUnitRequestPacket packet)
     {
-        _netManager.SendToAll(_netPacketProcessor.Write(packet), DeliveryMethod.ReliableOrdered);
+        _netManager.SendToAll(_netSerializer.Serialize(packet), DeliveryMethod.ReliableOrdered);
     }
 
 }

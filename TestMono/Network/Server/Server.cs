@@ -15,8 +15,8 @@ namespace TestMono.Network.Server;
 public class Server
 {
     private EventBasedNetListener _netListener;
-    private NetManager _netManager;
-    private NetPacketProcessor _netPacketProcessor;
+    private NetManager _netManager;    
+    private NetSerializer _netSerializer;
 
     public bool IsRunning => _netManager is not null && _netManager.IsRunning;
 
@@ -33,11 +33,16 @@ public class Server
     public void Start()
     {
         _netListener = new EventBasedNetListener();
-        _netManager = new NetManager(_netListener);
-        _netPacketProcessor = new NetPacketProcessor();
+        _netListener.PeerDisconnectedEvent += _netListener_PeerDisconnectedEvent;
 
-        _netPacketProcessor.RegisterNestedType<InitGamePlayerInfo>(() => new InitGamePlayerInfo());
-        //_netPacketProcessor.RegisterNestedType<MoveUnitRequestPacket>(() => new MoveUnitRequestPacket());
+        _netManager = new NetManager(_netListener);        
+
+        _netSerializer = new NetSerializer();
+        _netSerializer.RegisterNestedType<InitGamePlayerInfo>(() => new InitGamePlayerInfo());
+
+#if DEBUG
+        _netManager.DisconnectTimeout = 60000;
+#endif
 
         _netManager.Start(9050);
 
@@ -51,55 +56,42 @@ public class Server
 
         _netListener.PeerConnectedEvent += peer =>
         {
-            Debug.WriteLine("We got connection: {0}", peer.EndPoint);
-            //var writer = new NetDataWriter();
-            //writer.Put($"Hello client Nr {_netManager.ConnectedPeersCount}!");
+            Debug.WriteLine("We got connection: {0}", peer.EndPoint);            
             //peer.Send(writer, DeliveryMethod.ReliableOrdered);
         };
 
         _netListener.NetworkReceiveEvent += (peerFrom, reader, deliveryMethod) =>
         {
-            var packetType = (PacketType)reader.PeekInt(); //packetType = -132163544654 ??
+            var packetType = (PacketType)reader.PeekInt();
 
             switch (packetType)
             {
                 case PacketType.ClientInfoPacket:
-                    var packet = reader.Get<ClientInfoPacket>();
-                    MessagesReceived.Add($"Client sent InfoPacket: {JsonConvert.SerializeObject(packet)}");
-                    GameInstance.AddPlayer(packet.PlayerId, peerFrom);
-                    // ??
-                    break;
-                case PacketType.InitGamePacket:
-                    // ??
-                    break;
+                    {
+                        var packet = _netSerializer.Deserialize<ClientInfoPacket>(reader);
+                        MessagesReceived.Add($"Client sent InfoPacket: {JsonConvert.SerializeObject(packet)}");
+                        GameInstance.AddPlayer(packet.PlayerId, peerFrom);
+                        break;
+                    }                                    
                 case PacketType.MoveUnitRequestPacket:
-                    // ??
-                    break;
-                case PacketType.MoveUnitOrderPacket:
-                    // ??
-                    break;
+                    {
+                        var packet = _netSerializer.Deserialize<MoveUnitRequestPacket>(reader);
+                        MessagesReceived.Add($"Client sent MoveUnitRequestPacket: {JsonConvert.SerializeObject(packet)}");
+                        GameInstance.AddPacketFromPlayer(packet, peerFrom);
+                        break;
+                    }                
                 default:
-                    break;
-            }
-
-            //_netPacketProcessor.ReadAllPackets(reader);
-        };
-
-        //_netPacketProcessor.SubscribeReusable<ClientInfoPacket, NetPeer>((packet, peerFrom) =>
-        //{
-        //    MessagesReceived.Add($"Client sent InfoPacket: {JsonConvert.SerializeObject(packet)}");
-
-        //    GameInstance.AddPlayer(packet.PlayerId, peerFrom);
-        //});
-
-        _netPacketProcessor.SubscribeNetSerializable<MoveUnitRequestPacket, NetPeer>((packet, peerFrom) => {
-            MessagesReceived.Add($"Client sent MoveUnitRequestPacket: {JsonConvert.SerializeObject(packet)}");            
-
-            GameInstance.AddPacketFromPlayer(packet, peerFrom);            
-        });
+                    throw new NotImplementedException($"Unknown PacketType {reader.PeekInt()}");                    
+            }            
+        };        
 
         GameInstance = new ServerGameInstance(this);
-    }    
+    }
+
+    private void _netListener_PeerDisconnectedEvent(NetPeer peer, DisconnectInfo disconnectInfo)
+    {
+        Debug.WriteLine($"Client disconnected: {peer.EndPoint}, {disconnectInfo.Reason} ({disconnectInfo.AdditionalData})");
+    }
 
     public void PollEvents()
     {
@@ -124,11 +116,11 @@ public class Server
 
     public void SendPacketInitGame(InitGamePacket packet)
     {
-        _netManager.SendToAll(_netPacketProcessor.Write(packet), DeliveryMethod.ReliableOrdered);
+        _netManager.SendToAll(_netSerializer.Serialize(packet), DeliveryMethod.ReliableOrdered);
     }
 
     public void SendMoveUnitOrderPacket(MoveUnitOrderPacket packet)
     {
-        _netManager.SendToAll(_netPacketProcessor.Write(packet), DeliveryMethod.ReliableOrdered);
+        _netManager.SendToAll(_netSerializer.Serialize(packet), DeliveryMethod.ReliableOrdered);
     }
 }

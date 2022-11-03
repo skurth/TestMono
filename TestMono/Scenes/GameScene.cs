@@ -81,6 +81,14 @@ public class GameScene : IScene
             //Game1.CurrentGame.MaxElapsedTime = TimeSpan.FromMilliseconds(500);
             //Game1.CurrentGame.TargetElapsedTime = TimeSpan.FromMilliseconds(500);
         }
+        else if (AppType == ApplicationType.Client)
+        {
+            if (LocalPlayer?.Units.Count > 0)
+            {
+                var lookAtPosition = LocalPlayer.Units[0].Position;
+                _camera.LookAt(lookAtPosition);
+            }            
+        }
     }
 
     public void Update(GameTime gameTime)
@@ -103,7 +111,7 @@ public class GameScene : IScene
             //System.Threading.Thread.Sleep(250);
             ApplyPlayerPackets(gameTime);
         }
-
+        
         UpdateCamera(gameTime, mouseState);
 
         var deltaSeconds = (float)gameTime.ElapsedGameTime.TotalSeconds;
