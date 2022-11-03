@@ -24,5 +24,7 @@ public enum PacketType
     ClientInfoPacket = 1,    
     InitGamePacket = 2,
     MoveUnitRequestPacket = 3,
-    MoveUnitOrderPacket = 4
+    MoveUnitOrderPacket = 4,
+    ClientStartSyncServerTimestampPacket = 99,
+    ServerSyncTimestampResponsePacket = 100
 }

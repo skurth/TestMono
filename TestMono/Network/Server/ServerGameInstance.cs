@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using TestMono.GameObjects.Map;
+using TestMono.Helpers;
 using TestMono.Network.Client;
 using TestMono.Network.Packets;
 using TestMono.Network.Packets.ServerToClient;
@@ -45,7 +46,7 @@ public class ServerGameInstance
         var packet = new InitGamePacket()
         {
             PacketType = (int)PacketType.InitGamePacket,
-            Timestamp = new DateTimeOffset(DateTime.Now).ToUnixTimeMilliseconds(),
+            Timestamp = TimeUtils.GetCurrentTimestamp(),
             MapTilesX = tilesX,
             MapTilesY = tilesY
         };

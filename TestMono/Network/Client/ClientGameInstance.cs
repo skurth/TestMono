@@ -67,7 +67,7 @@ public class ClientGameInstance
         var packet = new MoveUnitRequestPacket()
         {
             PacketType = (int)PacketType.MoveUnitRequestPacket,
-            Timestamp = new DateTimeOffset(DateTime.Now).ToUnixTimeMilliseconds(),
+            Timestamp = TimeUtils.GetCurrentTimestamp(),
             UnitId = unitId,
             PositionX = endPositionX,
             PositionY = endPositionY
@@ -78,11 +78,47 @@ public class ClientGameInstance
         Client.SendMoveUnitRequestPacket(packet);
     }
 
+    public void SyncServerTimestampRequest()
+    {
+        var packet = new ClientStartSyncServerTimestampPacket()
+        {
+            PacketType = (int)PacketType.ClientStartSyncServerTimestampPacket,
+            Timestamp = TimeUtils.GetCurrentTimestamp(),
+        };
+
+        Debug.WriteLine($"{DateTime.Now} Client to Server: {JsonConvert.SerializeObject(packet)}");
+
+        Client.SendSyncServerTimestampRequestPacket(packet);
+    }
+
     public void MoveUnitOrder(MoveUnitOrderPacket packet)
     {
         var gameScene = Game1.CurrentGame.ScenesManager.CurrentScene as GameScene;
         gameScene.MoveUnitOrder(packet.UnitId, packet.PositionX, packet.PositionY);
     }
+
+    public void SyncServerTimestamp(ServerSyncTimestampResponsePacket packet)
+    {
+        var gameScene = Game1.CurrentGame.ScenesManager.CurrentScene as GameScene;
+
+        // calculate the time taken from the packet to be sent from the client and then for the server to return it //
+        var roundTrip = (int)(TimeUtils.GetCurrentTimestamp() - packet.TimestampClient);
+        var latency = roundTrip / 2; // the latency is half the round-trip time
+        // calculate the server-delta from the server time minus the current time
+        int serverDelta = (int)(packet.Timestamp - TimeUtils.GetCurrentTimestamp());
+        var timeDelta = serverDelta + latency; // the time-delta is the server-delta plus the latency
+
+        var timestampInfo = new TimestampInfo()
+        {
+            ServerTimestamp = packet.Timestamp,
+            Latency = latency,
+            ServerDelta = serverDelta,
+            TimeDelta = timeDelta
+        };
+
+        gameScene.SetTimestampInfo(timestampInfo);
+    }
+
 }
 
 public class CreateGameSceneInfo

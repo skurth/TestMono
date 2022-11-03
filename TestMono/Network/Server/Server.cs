@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
+using TestMono.Helpers;
 using TestMono.Network.Packets;
 using TestMono.Network.Packets.ClientToServer;
 using TestMono.Network.Packets.ServerToClient;
@@ -79,7 +80,14 @@ public class Server
                         MessagesReceived.Add($"Client sent MoveUnitRequestPacket: {JsonConvert.SerializeObject(packet)}");
                         GameInstance.AddPacketFromPlayer(packet, peerFrom);
                         break;
-                    }                
+                    }
+                case PacketType.ClientStartSyncServerTimestampPacket:
+                    {
+                        var packet = _netSerializer.Deserialize<ClientStartSyncServerTimestampPacket>(reader);
+                        MessagesReceived.Add($"Client sent ClientStartSyncServerTimestampPacket: {JsonConvert.SerializeObject(packet)}");
+                        SendServerSyncTimestampResponsePacket(packet, peerFrom);
+                        break;
+                    }
                 default:
                     throw new NotImplementedException($"Unknown PacketType {reader.PeekInt()}");                    
             }            
@@ -122,5 +130,17 @@ public class Server
     public void SendMoveUnitOrderPacket(MoveUnitOrderPacket packet)
     {
         _netManager.SendToAll(_netSerializer.Serialize(packet), DeliveryMethod.ReliableOrdered);
+    }
+
+    public void SendServerSyncTimestampResponsePacket(ClientStartSyncServerTimestampPacket packetFromClient, NetPeer peerFrom)
+    {
+        var packet = new ServerSyncTimestampResponsePacket()
+        {
+            PacketType = (int)PacketType.ServerSyncTimestampResponsePacket,
+            Timestamp = TimeUtils.GetCurrentTimestamp(),
+            TimestampClient = packetFromClient.Timestamp
+        };
+
+        peerFrom.Send(_netSerializer.Serialize(packet), DeliveryMethod.ReliableOrdered);
     }
 }

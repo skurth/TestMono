@@ -12,6 +12,7 @@ using System.Text;
 using TestMono.GameObjects;
 using TestMono.GameObjects.Map;
 using TestMono.GameObjects.Utils;
+using TestMono.Helpers;
 using TestMono.Network.Client;
 using TestMono.Network.Packets;
 using TestMono.Network.Packets.ClientToServer;
@@ -46,6 +47,10 @@ public class GameScene : IScene
     private ServerGameInstance ServerGameInstance { get; init; }
 
     private MouseState _previousMouseState = new MouseState();
+
+    private DateTime? _lastServerTimestampSync = null;
+    private TimestampInfo _timestampInfo = null;
+
 
     public GameScene(
         GraphicsDeviceManager graphics, 
@@ -111,6 +116,14 @@ public class GameScene : IScene
             //System.Threading.Thread.Sleep(250);
             ApplyPlayerPackets(gameTime);
         }
+        else if (AppType == ApplicationType.Client)
+        {
+            if (!_lastServerTimestampSync.HasValue || DateTime.Now - _lastServerTimestampSync.Value > TimeSpan.FromSeconds(10))
+            {
+                ClientGameInstance.SyncServerTimestampRequest();
+                _lastServerTimestampSync = DateTime.Now;
+            }
+        }
         
         UpdateCamera(gameTime, mouseState);
 
@@ -159,7 +172,7 @@ public class GameScene : IScene
         var orderPacket = new MoveUnitOrderPacket()
         {
             PacketType = (int)PacketType.MoveUnitOrderPacket,
-            Timestamp = new DateTimeOffset(DateTime.Now).ToUnixTimeMilliseconds(),
+            Timestamp = TimeUtils.GetCurrentTimestamp(),
             UnitId = packet.UnitId,
             PositionX = packet.PositionX,
             PositionY = packet.PositionY
@@ -189,8 +202,10 @@ public class GameScene : IScene
 
         _spriteBatch.Begin();
         _spriteBatch.DrawRectangle(new RectangleF(250, 250, 50, 50), Color.Red, 1f); //not dependent on camera
-        var diagnostics = GetGameDiagnostics();
-        _spriteBatch.DrawString(_font, diagnostics, new Vector2(10, 26), Color.Beige);            
+        var gameDiagnostics = GetGameDiagnostics();
+        _spriteBatch.DrawString(_font, gameDiagnostics, new Vector2(10, 26), Color.Beige);
+        var timestampDiagnostics = GetTimestampInfoDiagnostics();
+        _spriteBatch.DrawString(_font, timestampDiagnostics, new Vector2(700, 10), Color.Beige);
         _spriteBatch.End();
     }
 
@@ -270,6 +285,11 @@ public class GameScene : IScene
         unit.EndPosition = new Vector2(endPositionX, endPositionY);
     }
 
+    public void SetTimestampInfo(TimestampInfo timestampInfo)
+    {
+        _timestampInfo = timestampInfo;
+    }
+
     private string GetGameDiagnostics()
     {
         var sb = new StringBuilder();
@@ -291,4 +311,36 @@ public class GameScene : IScene
 
         return sb.ToString();
     }
+
+
+    private string GetTimestampInfoDiagnostics()
+    {
+        var sb = new StringBuilder();
+
+        if (AppType == ApplicationType.Server)
+        {
+            
+        }
+        else
+        {
+            if (_timestampInfo is null)
+                return String.Empty;
+            
+            sb.AppendLine($"Server Time: {_timestampInfo.ServerTime.ToString("HH:mm:ss.ffffff")}");
+            sb.AppendLine($"Latency: {_timestampInfo.Latency}ms");
+            sb.AppendLine($"Server Delta: {_timestampInfo.ServerDelta}ms");
+            sb.AppendLine($"Time Delta: {_timestampInfo.TimeDelta}ms");
+        }
+
+        return sb.ToString();
+    }
+}
+
+public class TimestampInfo
+{
+    public long ServerTimestamp { get; set; }
+    public DateTime ServerTime { get => TimeUtils.GetDateTimeFromTimestamp(ServerTimestamp); }
+    public int Latency { get; set; }
+    public int ServerDelta { get; set; }
+    public int TimeDelta { get; set; }
 }
