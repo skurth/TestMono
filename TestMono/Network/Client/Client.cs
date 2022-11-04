@@ -41,10 +41,10 @@ public class Client
 
 #if DEBUG
         //_netManager.SimulateLatency = true;
-        //_netManager.SimulationMinLatency = 1000;
-        //_netManager.SimulationMaxLatency = 3000;        
+        //_netManager.SimulationMinLatency = 10;
+        //_netManager.SimulationMaxLatency = 300;
         //_netManager.SimulatePacketLoss = true;
-        //_netManager.SimulationPacketLossChance = 50;        
+        //_netManager.SimulationPacketLossChance = 80;        
 
         _netManager.DisconnectTimeout = 60000;
 #endif
