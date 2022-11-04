@@ -1,10 +1,13 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using MonoGame.Extended;
+using System;
+using System.Collections.Generic;
+using TestMono.GameObjects.Weapons;
 
 namespace TestMono.GameObjects.Units;
 
-internal class House : IBuilding
+public class House : IBuilding
 {
     //public Texture2D Texture { get; set; }
     public int Id { get; set; }
@@ -20,6 +23,12 @@ internal class House : IBuilding
     public BuildingBuiltState State { get; set; } = BuildingBuiltState.Foundation;    
 
     public Color CircleColor { get; set; }
+
+    private const int _ARROW_SHOT_RATE_MS = 2000;
+    private DateTime? _lastArrowFired = null;
+    public List<Arrow> Arrows { get; set; }
+    public bool CanShotArrow {
+        get => !_lastArrowFired.HasValue || (DateTime.Now - _lastArrowFired.Value).TotalMilliseconds > _ARROW_SHOT_RATE_MS; }
 
     private readonly SpriteFont _font;
 

@@ -29,7 +29,10 @@ public class Player
         Buildings = new List<IBuilding>();
 
         var startUnit = new SimpleUnit(startUnitId, this, startUnitPosition);
-        Units.Add(startUnit);        
+        Units.Add(startUnit);
+
+        var startBuilding = new House(999, this, startUnitPosition);
+        Buildings.Add(startBuilding);
     }
 
     public void Update(GameTime gameTime)

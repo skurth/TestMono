@@ -14,7 +14,7 @@ internal class SimpleUnit : IUnit
     public Player Player { get; set; }
     public bool IsSelected { get; set; }
 
-    private Vector2 CenterPosition { get => new Vector2(Position.X + Width / 2, Position.Y + Height / 2); }
+    public Vector2 CenterPosition { get => new Vector2(Position.X + Width / 2, Position.Y + Height / 2); }
 
     public RectangleF Rectangle { get => new RectangleF(Position.X, Position.Y, Width, Height); }
 

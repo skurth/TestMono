@@ -11,6 +11,7 @@ public interface IBuilding
     public int Width { get; set; }
     public int Height { get; set; }
     public Vector2 Position { get; set; }
+    public Vector2 CenterPosition { get; }
     public Player Player { get; set; }
     public bool IsSelected { get; set; }
     public RectangleF Rectangle { get; }

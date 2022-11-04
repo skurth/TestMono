@@ -13,6 +13,7 @@ using TestMono.GameObjects;
 using TestMono.GameObjects.Buildings;
 using TestMono.GameObjects.Map;
 using TestMono.GameObjects.Units;
+using TestMono.GameObjects.Weapons;
 using TestMono.Helpers;
 using TestMono.Network.Client;
 using TestMono.Network.Packets;
@@ -129,6 +130,7 @@ public class GameScene : IScene
             //System.Threading.Thread.Sleep(250);
             ApplyPlayerPackets(gameTime);
             CheckCollisions(gameTime);
+            CheckUnitsNearShootingBuildings();
         }
         else if (AppType == ApplicationType.Client)
         {
@@ -191,7 +193,7 @@ public class GameScene : IScene
             PositionY = packet.PositionY
         };
 
-        // ToDo Check if ok?
+        // ToDo Check if ok?        
         ClientGameInstance.MoveUnitOrder(orderPacket);
 
         // If OK
@@ -217,7 +219,7 @@ public class GameScene : IScene
             PositionX = packet.PositionX,
             PositionY = packet.PositionY
         };
-
+        
         ClientGameInstance.BuildingSetFoundationOrder(orderPacket);        
         ServerGameInstance.Server.SendBuildingSetFoundationOrderPacket(orderPacket);
     }
@@ -284,6 +286,46 @@ public class GameScene : IScene
         return false;
     }
 
+    private bool _enemyUnitIsCloseBuilding = false;
+    private void CheckUnitsNearShootingBuildings()
+    {
+        var allUnits = new List<IUnit>();
+        var allBuildings = new List<IBuilding>();
+
+        _enemyUnitIsCloseBuilding = false;
+
+        foreach (var player in Players)
+        {
+            allUnits.AddRange(player.Units);
+            allBuildings.AddRange(player.Buildings);
+        }
+
+        foreach (var unit in allUnits)
+        {
+            foreach (var building in allBuildings)
+            {
+                if (building is not House)
+                    continue;
+
+                if (unit.Player == building.Player)
+                    continue;
+
+                var house = (House)building;
+
+                var distance = (unit.CenterPosition - building.CenterPosition).Length();
+                if (distance < 300)
+                {
+                    if (house.CanShotArrow)
+                    {
+                        HouseShotArrowOrder(house.Id, unit.CenterPosition.X, unit.CenterPosition.Y);
+                    }
+
+                    _enemyUnitIsCloseBuilding = true;
+                }
+            }
+        }
+    }
+
     public void Draw(GameTime gameTime)
     {
         var transformMatrix = _camera.GetViewMatrix();
@@ -305,6 +347,12 @@ public class GameScene : IScene
         _spriteBatch.DrawString(_font, gameDiagnostics, new Vector2(10, 26), Color.Beige);
         var timestampDiagnostics = GetTimestampInfoDiagnostics();
         _spriteBatch.DrawString(_font, timestampDiagnostics, new Vector2(700, 10), Color.Beige);
+
+        if (_enemyUnitIsCloseBuilding)
+        {
+            _spriteBatch.DrawString(_font, "Enemy is close to building", new Vector2(700, 24), Color.Beige);
+        }
+
         _spriteBatch.End();
     }
 
@@ -365,7 +413,7 @@ public class GameScene : IScene
     {
         if (!Map.IsInside(endPosition))
             return;
-
+        
         if (LocalPlayer is not null)
         {
             var unit = LocalPlayer.Units.FirstOrDefault(x => x.IsSelected);
@@ -428,6 +476,17 @@ public class GameScene : IScene
             return;
 
         building.State = BuildingBuiltState.Built;
+    }
+
+    public void HouseShotArrowOrder(int buildingId, float endPositionX, float endPositionY)
+    {
+        var building = BuildingsUtils.GetBuildingById(buildingId);
+        if (building is null)
+            return;
+
+        var house = (House)building;
+
+        house.Arrows.Add(new Arrow(house, building.CenterPosition, new Vector2(endPositionX, endPositionY)));
     }
 
     public void SetTimestampInfo(TimestampInfo timestampInfo)
